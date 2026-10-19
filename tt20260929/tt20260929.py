@@ -1,0 +1,292 @@
+import marimo
+
+__generated_with = "0.25.1"
+app = marimo.App(width="medium")
+
+
+@app.cell
+def _():
+    import marimo as mo
+
+    return (mo,)
+
+
+@app.cell
+def _():
+    import pandas as pd
+    health = pd.read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2026/2026-09-29/health.csv')
+    return (health,)
+
+
+@app.cell
+def _(health):
+    health
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Global Urban Health Infrastructure Analysis
+
+    This notebook explores the availability of hospitals and pharmacies in urban centres worldwide using the Global Human Settlement Urban Centre Database. We aim to understand the distribution of healthcare resources and their relationship with urban population densities.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Data Dictionary: health.csv
+
+    | variable | class | description |
+    | :--- | :--- | :--- |
+    | ID_UC_G0 | double | Unique ID. |
+    | GC_UCN_MAI_2025 | character | Urban Centre Main Name. |
+    | GC_CNT_GAD_2025 | character | Country name. GADM. |
+    | GC_UCA_KM2_2025 | double | Urban centre area in 2025. |
+    | GC_POP_TOT_2025 | double | Urban centre total population. |
+    | GC_DEV_WIG_2025 | character | World Bank Income Group. |
+    | GC_DEV_USR_2025 | character | UN SDG Region, geographic and statistical groupings of countries used by the UN. |
+    | HL_FCL_HOS_2024 | double | Number of hospitals in 2024. |
+    | HL_FCL_PHA_2024 | double | Number of pharmacies in 2024. |
+    | HL_FDE_HOS_2024 | double | Number of hospitals per urban centre area (km2) in 2024. |
+    | HL_FDE_PHA_2024 | double | Number of pharmacies per urban centre area (km2) in 2024. |
+    | HL_FPC_HOS_2025 | double | Number of hospitals per capita in 2025. |
+    | HL_FPC_PHA_2025 | double | Number of pharmacies per capita in 2025. |
+    | HL_POP_HOS_2025 | double | Population living within 1 km buffer from a hospital in 2025. |
+    | HL_POP_PHA_2025 | double | Population living within 1 km buffer from a pharmacy in 2025. |
+    | HL_SHP_HOS_2025 | double | Share of the urban centre population living within 1 km buffer from a hospital in 2025. |
+    | HL_SHP_PHA_2025 | double | Share of the urban centre population living within 1 km buffer from a pharmacy in 2025. |
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Urban Centre Level Analysis
+
+    We start by examining the number of hospitals and their per capita availability at the individual urban centre level to identify high-resource cities.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(health):
+
+    hospital_summary = health.groupby(['GC_CNT_GAD_2025', 'GC_UCN_MAI_2025']).agg({
+        'HL_FCL_HOS_2024': 'sum',
+        'HL_FPC_HOS_2025': 'mean'
+    }).sort_values('HL_FCL_HOS_2024', ascending=False).reset_index()
+    hospital_summary.columns = ['Country', 'Urban Centre', 'Hospitals (2024)', 'Hospitals per capita (2025)']
+    hospital_summary
+
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Country Level Metrics
+
+    Scaling up to the national level, we analyze the aggregate population served by hospitals and calculate the 'population per hospital' metric to assess national healthcare capacity.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(health):
+
+    pop_hosp_summary = health.groupby('GC_CNT_GAD_2025').agg({
+        'HL_POP_HOS_2025': 'sum',
+        'HL_FPC_HOS_2025': 'mean'
+    }).sort_values('HL_POP_HOS_2025', ascending=False).reset_index()
+
+    pop_hosp_summary['Population per Hospital (2025)'] = 1 / pop_hosp_summary['HL_FPC_HOS_2025']
+    pop_hosp_summary['Ratio (Pop per Hosp / Pop within 1km)'] = (
+        pop_hosp_summary['Population per Hospital (2025)'] / 
+        pop_hosp_summary['HL_POP_HOS_2025']
+    )
+
+    pop_hosp_summary.columns = [
+        'Country', 
+        'Population within 1km of Hospital (2025)', 
+        'Hospitals per capita (2025)', 
+        'Population per Hospital (2025)', 
+        'Ratio (Pop per Hosp / Pop within 1km)'
+    ]
+    pop_hosp_summary
+
+    return (pop_hosp_summary,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Distribution of Hospital Access
+
+    We visualize the ratio between population per hospital and the population living within 1km of a hospital. Ratios greater than 1.0 indicate areas where hospital access is significantly lower than the average distribution.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(pop_hosp_summary):
+
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(12, 7))
+    ratios = pop_hosp_summary['Ratio (Pop per Hosp / Pop within 1km)'].dropna()
+    plt.hist(ratios, bins=30, edgecolor='black', color='skyblue')
+
+    # Label outliers > 1.0
+    outliers = pop_hosp_summary[pop_hosp_summary['Ratio (Pop per Hosp / Pop within 1km)'] > 1.0]
+
+    for _, row in outliers.iterrows():
+        plt.text(row['Ratio (Pop per Hosp / Pop within 1km)'], 0.5, row['Country'], 
+                 rotation=45, ha='left', va='bottom', fontsize=9)
+
+    plt.title('Distribution of Ratio (Pop per Hospital / Pop within 1km)')
+    plt.xlabel('Ratio')
+    plt.ylabel('Frequency')
+    plt.grid(axis='y', alpha=0.75)
+    plt.tight_layout()
+    plt.show()
+
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Healthcare Infrastructure: Hospitals vs. Pharmacies
+
+    Comparing the total number of hospitals to pharmacies provides insight into the balance between acute care (hospitals) and primary/retail medicine (pharmacies).
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(health):
+
+    country_summary = health.groupby('GC_CNT_GAD_2025').agg({
+        'HL_FCL_HOS_2024': 'sum',
+        'HL_FCL_PHA_2024': 'sum',
+        'GC_POP_TOT_2025': 'sum'
+    }).reset_index()
+
+    country_summary.columns = ['Country', 'Total Hospitals (2024)', 'Total Pharmacies (2024)', 'Total Population (2025)']
+    country_summary = country_summary[country_summary['Total Pharmacies (2024)'] != 0]
+    country_summary['Hospitals to Pharmacies Ratio'] = country_summary['Total Hospitals (2024)'] / country_summary['Total Pharmacies (2024)']
+    country_summary
+
+    return (country_summary,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Global Distribution of Healthcare Balance
+
+    The following map shows the ratio of hospitals to pharmacies. Areas with higher ratios may have a more hospital-centric infrastructure.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(country_summary):
+
+    import plotly.express as px
+
+    fig = px.choropleth(
+        country_summary,
+        locations='Country',
+        locationmode='country names',
+        color='Hospitals to Pharmacies Ratio',
+        hover_name='Country',
+        color_continuous_scale='Viridis',
+        title='Ratio of Total Hospitals to Total Pharmacies by Country (2024)'
+    )
+    fig.show()
+
+    return (px,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Global Population per Hospital
+
+    This map highlights the burden on hospitals by showing the population size per hospital facility across different countries.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(country_summary, px):
+    pop_per_hosp_df = country_summary.copy()
+    pop_per_hosp_df['Population per Hospital'] = (
+        pop_per_hosp_df['Total Population (2025)'] / pop_per_hosp_df['Total Hospitals (2024)']
+    )
+
+    fig_pop_hosp = px.choropleth(
+        pop_per_hosp_df,
+        locations='Country',
+        locationmode='country names',
+        color='Population per Hospital',
+        hover_name='Country',
+        color_continuous_scale='YlOrRd',
+        title='Population per Hospital by Country'
+    )
+    fig_pop_hosp.show()
+
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Physical Accessibility
+
+    Finally, we map the total population living within a 1km buffer of a hospital to see which countries have the highest number of citizens with immediate physical access to hospital care.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(health, px):
+    pop_1km_summary = health.groupby('GC_CNT_GAD_2025')['HL_POP_HOS_2025'].sum().reset_index()
+    pop_1km_summary.columns = ['Country', 'Population within 1km of Hospital']
+
+    fig_pop_1km = px.choropleth(
+        pop_1km_summary,
+        locations='Country',
+        locationmode='country names',
+        color='Population within 1km of Hospital',
+        hover_name='Country',
+        color_continuous_scale='Greens',
+        title='Population Living within 1km Buffer from a Hospital by Country'
+    )
+    fig_pop_1km.show()
+
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Conclusion
+
+    Our analysis reveals significant disparities in healthcare infrastructure globally. While some urban centres are highly served, large populations in various countries face high 'population per hospital' ratios, indicating a need for expanded healthcare capacity in those regions.
+    """)
+    return
+
+
+@app.cell
+def _():
+    return
+
+
+if __name__ == "__main__":
+    app.run()
